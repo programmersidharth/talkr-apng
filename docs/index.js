@@ -465,7 +465,7 @@
 	Object.defineProperty(exports, "__esModule", {
 	    value: true
 	});
-	exports.Frame = exports.APNG = undefined;
+	exports.FrameAnim = exports.Frame = exports.APNG = undefined;
 
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
@@ -602,6 +602,67 @@
 	    return Frame;
 	}();
 
+	/**
+	 * @property {[number[]]} frames
+	 * @property {number} nextRenderTime
+	 * @property {number} currentFrameIndex
+	 */
+
+
+	var FrameAnim = exports.FrameAnim = function () {
+	    function FrameAnim() {
+	        _classCallCheck(this, FrameAnim);
+
+	        this.frames = [];
+	        this.nextRenderTime = 0;
+	        this.currentFrameIndex = 0;
+	    }
+	    /** @type {[number[]]} */
+
+
+	    _createClass(FrameAnim, [{
+	        key: 'fromArray',
+	        value: function fromArray(array, defaultVal) {
+	            this.frames = [];
+	            array.forEach(function (f) {
+	                frames.push(f, defaultVal);
+	            });
+	        }
+	    }, {
+	        key: 'fromFrames',
+	        value: function fromFrames(frames) {
+	            this.frames = [];
+
+	            // Make a copy
+	            var framesCopy = frames.map(function (arr) {
+	                return arr.slice();
+	            });
+	            frames.forEach(function (frame) {
+	                if (!Array.isArray(frame)) {
+	                    throw new Error('Error.  Animation must be array of arrays. [[i,dur]..]');
+	                }
+	            });
+	            this.frames = framesCopy;
+	        }
+
+	        // Ticks the animation to the current time.
+	        // Returns true if the animation has finished.
+
+	    }, {
+	        key: 'tick',
+	        value: function tick(now, playbackRate) {
+	            while (now >= this.nextRenderTime && this.frames.length > 0) {
+	                var framedata = this.frames.shift();
+	                this.currentFrameIndex = framedata[0];
+	                this.nextRenderTime = this.nextRenderTime + framedata[1] / playbackRate;
+	            }
+	            return now >= this.nextRenderTime && this.frames.length == 0;
+	        }
+	    }]);
+
+	    return FrameAnim;
+	}();
+
 /***/ }),
 /* 4 */
 /***/ (function(module, exports, __webpack_require__) {
@@ -618,7 +679,11 @@
 
 	var _events2 = _interopRequireDefault(_events);
 
+	var _structs = __webpack_require__(3);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -634,6 +699,14 @@
 	     * @param {CanvasRenderingContext2D} context
 	     * @param {boolean} autoPlay
 	     */
+
+
+	    // talkr files have the last lipsync frame at frame 21.
+	    // @todo: Dynamically adjust this based on a talkr-specific tag
+	    // parsed from the png file.    
+	    /** @type {number} */
+
+	    /** @type {number} */
 
 	    /** @type {boolean} */
 
@@ -652,10 +725,29 @@
 	        _this._ended = false;
 	        _this._paused = true;
 	        _this._numPlays = 0;
+	        _this._defaultFrameLength = 40;
+	        _this._is_talkr_file = false;
+	        _this._talkr_lipsync_frames = 21;
+	        _this._anims = [];
 
 	        _this._apng = apng;
 	        _this.context = context;
+
+	        // @todo: use a talkr-specific png tag to figure out if we are a talkr file. 
+	        // Currently we will erroneously classify all 29-frame png files.
+	        // In addition, future changes to talkr files will not be supported by this 
+	        // library.
+	        if (apng.frames.length === 29) {
+	            _this._is_talkr_file = true;
+	        } else {
+	            // In order to play this non-talkr GIF file forwards and backwards, without
+	            // considering frame disposal options, we need to store the "full" frames
+	            // in memory so they can be displayed without knowing which frame came before.
+	            _this.createFullFrames();
+	        }
+
 	        _this.stop();
+
 	        if (autoPlay) {
 	            _this.play();
 	        }
@@ -666,6 +758,15 @@
 	     *
 	     * @return {number}
 	     */
+
+
+	    /** @type FrameAnim[] */
+
+
+	    // talkr files will attempt to layer blink and eyebrow anims 
+	    // on top of the lip-sync animation. Non-talkr files will
+	    // simply ping-pong all frames.
+	    /** @type {boolean} */
 
 	    /** @type {number} */
 
@@ -752,6 +853,200 @@
 	                this.emit('pause');
 	                this._paused = true;
 	            }
+	        }
+
+	        // Non-talkr APNG files will need this to play in reverse 
+
+	    }, {
+	        key: 'createFullFrames',
+	        value: function createFullFrames() {
+
+	            // full frame data contains the full data for the frame
+	            // as opposed to the data that needs to be applied to the previous frame 
+	            // (which was added to the frame before that, etc.)
+	            this._fullFrameData = [];
+	            this._currentFrameNumber = -1;
+
+	            this.context.clearRect(0, 0, this._apng.width, this._apng.height);
+	            for (var i = 0; i < this._apng.frames.length; ++i) {
+	                this.renderNextFrame();
+	                var frame = this._apng.frames[i];
+	                this._fullFrameData.push(this.context.getImageData(0, 0, this._apng.width, this._apng.height));
+	            }
+	        }
+
+	        /**
+	         * @param {number} index
+	         */
+
+	    }, {
+	        key: 'renderFullFrame',
+	        value: function renderFullFrame(index) {
+	            index = index % this._apng.frames.length;
+	            if (index >= 0) {
+	                this.context.putImageData(this._fullFrameData[index], 0, 0);
+	            }
+	        }
+	    }, {
+	        key: 'addAnimToPlay',
+	        value: function addAnimToPlay(anim) {
+	            if (!anim || anim.length == 0) {
+	                return;
+	            }
+	            var newFrameAnim = new _structs.FrameAnim();
+	            newFrameAnim.fromFrames(anim);
+	            this._anims.push(newFrameAnim);
+	        }
+	    }, {
+	        key: 'play_anims',
+	        value: function play_anims() {
+	            var _this3 = this;
+
+	            if (!this._ended) {
+	                // Interrupting current animation. Could be snaps was we swap out 
+	            }
+	            this._ended = false;
+	            this._paused = false;
+
+	            this._anims.forEach(function (anim) {
+	                if (anim.frames.length > 0) {
+	                    var animframe = anim.frames[0];
+	                    anim.nextRenderTime = performance.now() + animframe[1] / _this3.playbackRate;
+	                    anim.currentFrameIndex = animframe[0];
+	                }
+	            });
+	            var tick = function tick(now) {
+	                // @todo, support resuming from a paused animation.  Create resume function?
+	                if (_this3._ended || _this3._paused || _this3._anims.length == 0) {
+	                    _this3.context.drawImage(_this3._apng.frames[0].imageElement, _this3._apng.frames[0].left, _this3._apng.frames[0].top);
+	                    return;
+	                }
+
+	                // Don't change the canvas if nothing changed.
+	                var refreshed = false;
+	                _this3._anims.forEach(function (anim) {
+	                    if (now >= anim.nextRenderTime) {
+	                        refreshed = true;
+	                    }
+	                });
+	                var frames_to_draw = [];
+	                if (refreshed) {
+	                    frames_to_draw.push(0);
+	                    for (var i = _this3._anims.length - 1; i >= 0; --i) {
+	                        var bDelete = _this3._anims[i].tick(now, _this3.playbackRate);
+
+	                        if (bDelete) {
+	                            _this3._anims.splice(i, 1);
+	                        } else {
+	                            frames_to_draw.push(_this3._anims[i].currentFrameIndex);
+	                        }
+	                    }
+	                    // sort and remove duplicates.
+	                    frames_to_draw = [].concat(_toConsumableArray(new Set(frames_to_draw))).sort(function (a, b) {
+	                        return a - b;
+	                    });
+
+	                    if (!_this3._is_talkr_file) {
+	                        // Non _talkr files just loop their full frames.  
+	                        _this3.renderFullFrame(frames_to_draw[frames_to_draw.length - 1]);
+	                    } else {
+	                        frames_to_draw.forEach(function (f) {
+	                            _this3.context.drawImage(_this3._apng.frames[f].imageElement, _this3._apng.frames[f].left, _this3._apng.frames[f].top);
+	                        });
+	                    }
+	                }
+	                if (_this3._anims.length == 0) {
+	                    _this3.emit('end');
+	                    _this3._ended = true;
+	                    _this3._paused = true;
+	                    return;
+	                }
+	                requestAnimationFrame(tick);
+	            };
+	            requestAnimationFrame(tick);
+	        }
+	        /**
+	         * @param {number} duration
+	         * @return {FrameAnim}     
+	         */
+
+	    }, {
+	        key: 'create_blink_anim',
+	        value: function create_blink_anim(duration) {
+	            var rand = Math.random();
+	            if (rand < 0.3) {
+	                return [];
+	            }
+	            if (rand < 0.6) {
+	                return [[22, 50], [23, 50], [24, 50], [23, 50], [22, 50]];
+	            }
+
+	            return [[0, rand * duration], [22, 50], [23, 50], [24, 50], [23, 50], [22, 50]];
+	        }
+	        /**
+	         * @param {number} duration
+	         * @return {FrameAnim}     
+	         */
+
+	    }, {
+	        key: 'create_brow_anim',
+	        value: function create_brow_anim(duration) {
+	            var rand = Math.random();
+	            if (rand < 0.3) {
+	                return [];
+	            }
+	            if (rand < 0.6) {
+	                return [[25, 50], [26, 50], [27, 50], [28, 100], [27, 80], [26, 80], [25, 80]];
+	            }
+	            // Hold eyebrows up for the entire short utterance.
+	            if (duration < 1000) {
+	                return [[25, 50], [26, 50], [27, 50], [28, duration * 0.9], [27, 80], [26, 80], [25, 80]];
+	            }
+	        }
+	        /**
+	         * @param {number} duration
+	         */
+
+	    }, {
+	        key: 'play_for_duration',
+	        value: function play_for_duration(dur) {
+	            var normalizedFrameTime = this._defaultFrameLength / this.playbackRate;
+	            var frames = [[0, normalizedFrameTime]];
+	            var i = 0;
+	            var reverse = false;
+	            var t = normalizedFrameTime;
+	            var lastNonZeroFrameTime = dur - normalizedFrameTime;
+
+	            var lastLipsyncFrame = this._talkr_lipsync_frames;
+	            if (!this._is_talkr_file) {
+	                lastLipsyncFrame = this._apng.frames.length - 1;
+	            }
+	            while (t <= lastNonZeroFrameTime) {
+	                if (i === lastLipsyncFrame || i === 0) {
+	                    reverse = i === lastLipsyncFrame;
+	                }
+	                // Make sure we reverse in time to reach frame 1 before lastNonZeroFrameTime.
+	                if (!reverse && i > 0 && t + i * normalizedFrameTime > lastNonZeroFrameTime) {
+	                    reverse = true;
+	                }
+	                var increment = reverse ? -1 : 1;
+	                i += increment;
+	                frames.push([i, normalizedFrameTime]);
+	                t += normalizedFrameTime;
+	            }
+	            if (i != 0) {
+	                frames.push([0, normalizedFrameTime]);
+	            }
+	            this._anims = [];
+
+	            this.addAnimToPlay(frames);
+
+	            if (this._is_talkr_file) {
+	                this.addAnimToPlay(this.create_blink_anim());
+	                this.addAnimToPlay(this.create_brow_anim());
+	            }
+
+	            this.play_anims();
 	        }
 	    }, {
 	        key: 'stop',
@@ -1141,7 +1436,7 @@
 
 
 	// module
-	exports.push([module.id, ".apng-info,\r\n.apng-frames {\r\n    max-height: 600px;\r\n    overflow:   auto;\r\n}\r\n\r\n.apng-frames > div {\r\n    float:            left;\r\n    margin:           1px 1px 8px 8px;\r\n    box-shadow:       0 0 0 1px;\r\n    position:         relative;\r\n    background:       linear-gradient(45deg, #fff 25%, transparent 26%, transparent 75%, #fff 76%),\r\n                      linear-gradient(-45deg, #fff 25%, transparent 26%, transparent 75%, #fff 76%);\r\n    background-color: #eee;\r\n    background-size:  20px 20px;\r\n}\r\n\r\n.apng-frames > div > img {\r\n    position:   absolute;\r\n    box-shadow: 0 0 0 1px rgba(255, 0, 0, 0.75);\r\n}\r\n\r\n#playback-rate {\r\n    width:   12em;\r\n    display: inline-block;\r\n}", ""]);
+	exports.push([module.id, ".apng-info,\n.apng-frames {\n    max-height: 600px;\n    overflow:   auto;\n}\n\n.apng-frames > div {\n    float:            left;\n    margin:           1px 1px 8px 8px;\n    box-shadow:       0 0 0 1px;\n    position:         relative;\n    background:       linear-gradient(45deg, #fff 25%, transparent 26%, transparent 75%, #fff 76%),\n                      linear-gradient(-45deg, #fff 25%, transparent 26%, transparent 75%, #fff 76%);\n    background-color: #eee;\n    background-size:  20px 20px;\n}\n\n.apng-frames > div > img {\n    position:   absolute;\n    box-shadow: 0 0 0 1px rgba(255, 0, 0, 0.75);\n}\n\n#playback-rate {\n    width:   12em;\n    display: inline-block;\n}", ""]);
 
 	// exports
 

@@ -1,18 +1,25 @@
 {
-  "name": "apng-js",
-  "version": "1.0.4",
-  "description": "Parse and play animated PNG (APNG)",
-  "homepage": "https://github.com/davidmz/apng-js",
-  "repository": "davidmz/apng-js",
+  "name": "talkr-apng",
+  "version": "0.0.4",
+  "description": "Parse and play animated PNG (APNG) to sync with TTS or audio",
+  "repository": "talkr-app/talkr-apng",
   "main": "lib/index.js",
   "scripts": {
     "build": "node_modules/.bin/webpack",
     "prepublish": "npm run build"
   },
+  "keywords": [
+    "tts",
+    "text to speech",
+    "speechSynthesis",
+    "png",
+    "apng",
+    "animation",
+    "talkr"
+  ],  
   "author": {
-    "name": "David Mzareulyan",
-    "email": "david@hiero.ru",
-    "url": "https://github.com/davidmz"
+    "name": "Talkr, Inc.",
+    "url": "https://talkrapp.com"
   },
   "license": "MIT",
   "devDependencies": {

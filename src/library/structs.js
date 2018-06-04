@@ -77,3 +77,49 @@ export class Frame {
         });
     }
 }
+
+
+/**
+ * @property {[number[]]} frames
+ * @property {number} nextRenderTime
+ * @property {number} currentFrameIndex
+ */
+export class FrameAnim {
+     /** @type {[number[]]} */
+    frames = [];
+    
+    nextRenderTime = 0;
+    currentFrameIndex = 0;
+
+    fromArray(array, defaultVal){
+        this.frames = [];
+        array.forEach( f => {frames.push(f, defaultVal)});
+    }
+
+    fromFrames(frames){
+        this.frames = [];
+
+        // Make a copy
+        var framesCopy =  frames.map(function(arr) {
+            return arr.slice();
+        });     
+        frames.forEach(function(frame){
+            if (!Array.isArray(frame)  ) {
+                throw new Error('Error.  Animation must be array of arrays. [[i,dur]..]');
+            }
+        }); 
+        this.frames = framesCopy;
+    }
+
+    // Ticks the animation to the current time.
+    // Returns true if the animation has finished.
+    tick(now, playbackRate){
+        while ( now >= this.nextRenderTime && this.frames.length > 0){
+            let framedata = this.frames.shift();
+            this.currentFrameIndex = framedata[0];
+            this.nextRenderTime =  this.nextRenderTime + framedata[1] / playbackRate;
+        }
+        return now >= this.nextRenderTime && this.frames.length == 0;
+    }
+}
+
