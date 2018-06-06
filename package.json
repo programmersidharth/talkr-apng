@@ -1,6 +1,6 @@
 {
   "name": "talkr-apng",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Parse and play animated PNG (APNG) to sync with TTS or audio",
   "repository": "talkr-app/talkr-apng",
   "main": "lib/index.js",
@@ -16,7 +16,7 @@
     "apng",
     "animation",
     "talkr"
-  ],  
+  ],
   "author": {
     "name": "Talkr, Inc.",
     "url": "https://talkrapp.com"
