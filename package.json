@@ -5,7 +5,7 @@
   "repository": "talkr-app/talkr-apng",
   "main": "lib/index.js",
   "scripts": {
-    "build": "node_modules/.bin/webpack",
+    "build": "node_modules/.bin/webpack --optimize-minimize",
     "prepublish": "npm run build"
   },
   "keywords": [
