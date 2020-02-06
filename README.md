@@ -2,8 +2,6 @@
 
 `talkr-apng` is forked from the excellent [apng-js](https://github.com/davidmz/apng-js) library which provides a generalized APNG parsing framework.  `talkr-apng` adds functionality specific to playing APNG files in sync with audio or text-to-speech animations.  Similar to talkr's [GIF parsing library](https://github.com/talkr-app/gif-talkr), `talkr-apng` has special code to play blink and eyebrow animations on files that were generated from the iOS app [talkr](https://talkrapp).  Memory use and loading times are drastically reduced by `talkr-apng` as compared to `gif-talkr` because the png frames are compressed.
 
-See [Talkr Choices](https://choices.talkrapp.com) for an example of this library in action.
-
 ## Usage
 `npm install talkr-apng`
  
