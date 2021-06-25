@@ -30,11 +30,11 @@ export default class extends EventEmitter {
     /** @type {boolean} */
     _is_talkr_file = false;
 
-    // talkr files have the last lipsync frame at frame 21.
-    // @todo: Dynamically adjust this based on a talkr-specific tag
-    // parsed from the png file.    
     /** @type {number} */
-    _talkr_lipsync_frames = 21;
+    _last_lipsync_frame_index = 0;
+
+    /** @type {number} */
+    _startIndex = 0;
 
     /** @type FrameAnim[] */
     _anims = [];
@@ -51,17 +51,16 @@ export default class extends EventEmitter {
         this._apng = apng;
         this.context = context;
 
-        // @todo: use a talkr-specific png tag to figure out if we are a talkr file. 
-        // Currently we will erroneously classify all 29-frame png files.
-        // In addition, future changes to talkr files will not be supported by this 
-        // library.
-        if (apng.frames.length === 29){
-            this._is_talkr_file = true;
-        } else {
+        if (!this._apng.isTalkrFile || this._apng.frames.length < 30 ) {
             // In order to play this non-talkr GIF file forwards and backwards, without
             // considering frame disposal options, we need to store the "full" frames
             // in memory so they can be displayed without knowing which frame came before.
             this.createFullFrames();
+            this._last_lipsync_frame_index = this._apng.frames.length -1
+            
+        } else {
+            this._last_lipsync_frame_index = 22
+            this._startIndex = 1
         }
 
         this.stop();
@@ -208,10 +207,18 @@ export default class extends EventEmitter {
                 anim.currentFrameIndex = animframe[0];   
             }
         });
+        const drawF0 = () => {
+            this.context.drawImage(this._apng.frames[0].imageElement, this._apng.frames[0].left, this._apng.frames[0].top);
+            if (this._apng.isTalkrFile) {
+                // The base image for talkr files includes frame 1 drawn over frame 0.  This allows frame 0 to represent
+                // the original image, with an overlay on frame 1 to add things like teeth or other effects.
+                this.context.drawImage(this._apng.frames[1].imageElement, this._apng.frames[1].left, this._apng.frames[1].top);
+            }
+        }
         const tick = now => {
             // @todo, support resuming from a paused animation.  Create resume function?
             if (this._ended || this._paused || this._anims.length == 0) {
-                this.context.drawImage(this._apng.frames[0].imageElement, this._apng.frames[0].left, this._apng.frames[0].top);
+                drawF0()
                 return;
             }
 
@@ -224,7 +231,6 @@ export default class extends EventEmitter {
             });
             let frames_to_draw = [];
             if(refreshed){
-                frames_to_draw.push(0);
                 for(let i = this._anims.length -1; i >= 0; --i){
                     let bDelete = this._anims[i].tick(now,  this.playbackRate)
 
@@ -237,12 +243,16 @@ export default class extends EventEmitter {
                 // sort and remove duplicates.
                 frames_to_draw = [...new Set(frames_to_draw)].sort( (a,b) => { return a-b;});
 
-                if (!this._is_talkr_file) {
+                if (!this._apng.isTalkrFile) {
                     // Non _talkr files just loop their full frames.  
                     this.renderFullFrame(frames_to_draw[frames_to_draw.length -1])
                 } else {
+                    this.context.clearRect(0, 0, this._apng.width, this._apng.height);
+                    drawF0()
                     frames_to_draw.forEach(f => {
-                        this.context.drawImage(this._apng.frames[f].imageElement, this._apng.frames[f].left, this._apng.frames[f].top);
+                        if(f>this._startIndex) {
+                            this.context.drawImage(this._apng.frames[f].imageElement, this._apng.frames[f].left, this._apng.frames[f].top);
+                        }
                     });
                 }
             }
@@ -266,10 +276,9 @@ export default class extends EventEmitter {
             return [];
         }
         if(rand < 0.6){
-            return [[22, 50],[23, 50],[24, 50],[23, 50],[22, 50]];
+            return [[23, 50],[24, 50],[25, 50],[24, 50],[23, 50]];
         }
-
-        return [[0,rand*duration],[22, 50],[23, 50],[24, 50],[23, 50],[22, 50]];
+        return [[1,rand*duration],[23, 50],[24, 50],[25, 50],[24, 50],[23, 50]];
     }
     /**
      * @param {number} duration
@@ -281,11 +290,11 @@ export default class extends EventEmitter {
             return [];
         }
         if(rand < 0.6){
-            return [[25, 50],[26, 50],[27, 50],[28, 100],[27, 80],[26, 80],[25, 80]];
+            return [[26, 50],[27, 50],[28, 50],[29, 100],[28, 80],[27, 80],[26, 80]];
         }
         // Hold eyebrows up for the entire short utterance.
         if(duration < 1000 ){
-            return [[25, 50],[26, 50],[27, 50],[28, duration*0.9],[27, 80],[26, 80],[25, 80]]; 
+            return [[26, 50],[27, 50],[28, 50],[29, duration*0.9],[28, 80],[27, 80],[26, 80]]; 
         }
     }
     /**
@@ -293,23 +302,19 @@ export default class extends EventEmitter {
      */       
     play_for_duration(dur) {
         let normalizedFrameTime = this._defaultFrameLength / this.playbackRate;
-        let frames = [[0, normalizedFrameTime]];
-        let i = 0;
+        let frames = [];
+        
+        let i = this._startIndex
         let reverse = false;
         let t = normalizedFrameTime;
         let lastNonZeroFrameTime = dur - normalizedFrameTime;
 
-
-        let lastLipsyncFrame = this._talkr_lipsync_frames;
-        if( !this._is_talkr_file ){
-            lastLipsyncFrame = this._apng.frames.length -1;
-        }
         while( t <= lastNonZeroFrameTime ){
-            if (i === lastLipsyncFrame || i === 0 ) {
-                reverse = i === lastLipsyncFrame;
+            if (i === this._last_lipsync_frame_index || i === this._startIndex ) {
+                reverse = i === this._last_lipsync_frame_index;
             }
             // Make sure we reverse in time to reach frame 1 before lastNonZeroFrameTime.
-            if (!reverse && i > 0 && t + i * normalizedFrameTime > lastNonZeroFrameTime) {
+            if (!reverse && i > this._startIndex && t + i * normalizedFrameTime > lastNonZeroFrameTime) {
                 reverse = true
             }
             let increment = reverse ? -1 : 1
@@ -317,14 +322,14 @@ export default class extends EventEmitter {
             frames.push([i, normalizedFrameTime]);
             t += normalizedFrameTime;
         }
-        if( i != 0){
-            frames.push([0,normalizedFrameTime]);
+        if( i != this._startIndex){
+            frames.push([this._startIndex, normalizedFrameTime]);
         }
         this._anims = []
 
         this.addAnimToPlay(frames);
         
-        if( this._is_talkr_file ) {
+        if( this._apng.isTalkrFile ) {
             this.addAnimToPlay(this.create_blink_anim());
             this.addAnimToPlay(this.create_brow_anim());
         }

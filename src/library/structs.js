@@ -5,6 +5,7 @@ import Player from './player';
  * @property {Frame} currFrame
  * @property {boolean} paused
  * @property {boolean} ended
+ * @property {boolean} isTalkrFile
  */
 export class APNG {
     /** @type {number} */

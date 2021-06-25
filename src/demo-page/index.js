@@ -15,28 +15,21 @@ fileInput.addEventListener('change', () => {
 })
 
 let player = null
+let defaultDuration = 2000
 
 document.getElementById('play-pause-btn').addEventListener('click', () => {
   if (player) {
     if (player.paused) {
-      player.play()
+      player.play_for_duration(defaultDuration)
     } else {
-      player.pause()
+      player.stop()
     }
   }
 })
 
-document.getElementById('stop-btn').addEventListener('click', () => player && player.stop())
 
 let playbackRate = 1.0
-document.getElementById('playback-rate').addEventListener('change', e => {
-  playbackRate = parseFloat(e.target.value)
-  document.getElementById('playback-rate-display').innerHTML = playbackRate.toString()
-  if (player) {
-    player.playbackRate = playbackRate
-  }
-})
-
+let bForceLoadAsTalkr = false
 function processFile (file) {
   const resultBlock = document.querySelector('.apng-result')
   const errorBlock = document.querySelector('.apng-error')
@@ -57,7 +50,9 @@ function processFile (file) {
 
   const reader = new FileReader()
   reader.onload = () => {
-    const apng = parseAPNG(reader.result)
+    console.log(document.getElementById('force-talkr-cbx').checked)
+    bForceLoadAsTalkr = document.getElementById('force-talkr-cbx').checked
+    const apng = parseAPNG(reader.result, bForceLoadAsTalkr)
     if (apng instanceof Error) {
       errDiv.appendChild(document.createTextNode(apng.message))
       errorBlock.classList.remove('hidden')
@@ -82,7 +77,7 @@ function processFile (file) {
       apng.getPlayer(canvas.getContext('2d')).then(p => {
         player = p
         player.playbackRate = playbackRate
-        player.play()
+        player.play_for_duration(defaultDuration)
       })
     })
     resultBlock.classList.remove('hidden')
@@ -97,32 +92,3 @@ function emptyEl (el) {
   }
 }
 
-function playAPNG (apng, context) {
-  const rnd = new Renderer(apng, context)
-  let numPlays = 0
-  let nextRenderTime = performance.now() + rnd.currFrame().delay
-  let stop = false
-  const tick = now => {
-    if (stop) {
-      return
-    }
-    if (now >= nextRenderTime) {
-      while (now - nextRenderTime > apng.playTime) {
-        nextRenderTime += apng.playTime
-      }
-      do {
-        rnd.renderNext()
-        if (rnd.frameNumber === apng.frames.length - 1) {
-          numPlays++
-          if (apng.numPlays !== 0 && numPlays >= apng.numPlays) {
-            return
-          }
-        }
-        nextRenderTime += rnd.currFrame().delay
-      } while (now > nextRenderTime)
-    }
-    requestAnimationFrame(tick)
-  }
-  requestAnimationFrame(tick)
-  return () => stop = true
-}

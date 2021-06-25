@@ -3,6 +3,7 @@ import {APNG, Frame} from './structs';
 
 const errNotPNG = new Error('Not a PNG');
 const errNotAPNG = new Error('Not an animated PNG');
+const errNotTalkrAPNG = new Error('Not a talkr PNG with 30 frames');
 
 export function isNotPNG(err) { return err === errNotPNG; }
 export function isNotAPNG(err) { return err === errNotAPNG; }
@@ -15,7 +16,7 @@ const PNGSignature = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0
  * @param {ArrayBuffer} buffer
  * @return {APNG|Error}
  */
-export default function parseAPNG(buffer) {
+export default function parseAPNG(buffer, forceTalkrFile = false) {
     const bytes = new Uint8Array(buffer);
 
     if (Array.prototype.some.call(PNGSignature, (b, i) => b !== bytes[i])) {
@@ -92,6 +93,14 @@ export default function parseAPNG(buffer) {
             case 'IEND':
                 postDataParts.push(subBuffer(bytes, off, 12 + length));
                 break;
+            case 'iTXt':
+                // We look for the 'talkr-apng' author in the PNG author data.
+                var iTXt = readString(bytes, off+8, length)
+                var creator = iTXt.match(new RegExp("<dc:creator>(.*)<\/dc:creator>", 'gms'))
+                if(creator && creator[0].includes('talkrapp.com')) {
+                    apng.isTalkrFile = true
+                }
+                break;
             default:
                 preDataParts.push(subBuffer(bytes, off, 12 + length));
         }
@@ -121,6 +130,14 @@ export default function parseAPNG(buffer) {
         delete frame.dataParts;
         bb = null;
     });
+
+    if (forceTalkrFile) {
+        if (apng.frames.length == 30) {
+            apng.isTalkrFile = true
+        } else {
+            return errNotTalkrAPNG;
+        }
+    } 
 
     return apng;
 }

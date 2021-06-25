@@ -8,12 +8,16 @@
 </head>
 <body>
 <div class="container">
-    <h1>apng-js demo</h1>
+    <h1>talkr-apng demo</h1>
     <p>
-        See <a href="https://github.com/davidmz/apng-js" target="_blank">github.com/davidmz/apng-js</a>.
+        See <a href="https://github.com/talkr-app/talkr-apng" target="_blank">github.com/talkr-app/talkr-apng</a>.
     </p>
     <p>
         <button id="choose-btn" class="btn btn-primary">Choose APNG file</button>
+        <input type="checkbox" id="force-talkr-cbx"> Force load as talkr file</input>
+        <p>Note: A sample talkr file is provided with this index.html file</p>
+        
+
     </p>
     <div class="container apng-error hidden">
         <div class="alert alert-danger"></div>
@@ -24,10 +28,7 @@
                 <p>Animation on canvas</p>
                 <div class="apng-ani"></div>
                 <div>
-                    <button class="btn" id="play-pause-btn">Play / Pause</button>
-                    <button class="btn" id="stop-btn">Stop</button>
-                    Playback rate (<span id="playback-rate-display">1.0</span>)
-                    <input id="playback-rate" type="range" min="0.1" max="2.0" step="0.1" value="1.0">
+                    <button class="btn" id="play-pause-btn">Play 2 seconds</button>
                 </div>
             </div>
         </div>
